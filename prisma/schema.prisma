@@ -1,0 +1,149 @@
+// =============================================================================
+// EasyCRM — Prisma Schema (v1.1)
+// Matches: Spec Sections 5.1 through 5.5
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// 5.5 — User
+// =============================================================================
+model User {
+  id               String    @id @default(uuid()) @db.Uuid
+  username         String    @unique @db.VarChar(100)
+  pinHash          String    @map("pin_hash") @db.VarChar(255)
+  displayName      String?   @map("display_name") @db.VarChar(150)
+  isActive         Boolean   @default(true) @map("is_active")
+  failedLoginCount Int       @default(0) @map("failed_login_count")
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz()
+
+  // Audit columns (Section 5.1)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Inverse relations for audit trail
+  companiesCreated      Company[]     @relation("CompanyCreatedBy")
+  companiesUpdated      Company[]     @relation("CompanyUpdatedBy")
+  companiesDeleted      Company[]     @relation("CompanyDeletedBy")
+  contactsCreated       Contact[]     @relation("ContactCreatedBy")
+  contactsUpdated       Contact[]     @relation("ContactUpdatedBy")
+  contactsDeleted       Contact[]     @relation("ContactDeletedBy")
+  opportunitiesCreated  Opportunity[] @relation("OpportunityCreatedBy")
+  opportunitiesUpdated  Opportunity[] @relation("OpportunityUpdatedBy")
+  opportunitiesDeleted  Opportunity[] @relation("OpportunityDeletedBy")
+
+  @@map("users")
+}
+
+// =============================================================================
+// 5.2 — Company
+// =============================================================================
+model Company {
+  id            String  @id @default(uuid()) @db.Uuid
+  name          String  @db.VarChar(255)
+  website       String? @db.VarChar(500)
+  industry      String? @db.VarChar(100)
+  headcount     Int?
+  annualRevenue Decimal?  @map("annual_revenue") @db.Decimal(15, 2)
+  city          String? @db.VarChar(100)
+  region        String? @db.VarChar(100)
+  country       String? @db.VarChar(100)
+  notes         String? @db.Text
+
+  // Audit columns (Section 5.1)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  createdBy String    @map("created_by") @db.Uuid
+  updatedBy String    @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  deletedBy String?   @map("deleted_by") @db.Uuid
+
+  // Relations
+  createdByUser User @relation("CompanyCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User @relation("CompanyUpdatedBy", fields: [updatedBy], references: [id])
+  deletedByUser User? @relation("CompanyDeletedBy", fields: [deletedBy], references: [id])
+
+  contacts      Contact[]
+  opportunities Opportunity[]
+
+  // Indexes (Section 5.2)
+  @@index([name])
+  @@index([deletedAt])
+  @@map("companies")
+}
+
+// =============================================================================
+// 5.3 — Contact
+// =============================================================================
+model Contact {
+  id        String  @id @default(uuid()) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  firstName String  @map("first_name") @db.VarChar(100)
+  lastName  String  @map("last_name") @db.VarChar(100)
+  title     String? @db.VarChar(150)
+  email     String? @db.VarChar(255)
+  phone     String? @db.VarChar(50)
+  notes     String? @db.Text
+
+  // Audit columns (Section 5.1)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  createdBy String    @map("created_by") @db.Uuid
+  updatedBy String    @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  deletedBy String?   @map("deleted_by") @db.Uuid
+
+  // Relations
+  company       Company @relation(fields: [companyId], references: [id])
+  createdByUser User    @relation("ContactCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User    @relation("ContactUpdatedBy", fields: [updatedBy], references: [id])
+  deletedByUser User?   @relation("ContactDeletedBy", fields: [deletedBy], references: [id])
+
+  // Indexes (Section 5.3)
+  @@index([companyId])
+  @@index([email])
+  @@index([deletedAt])
+  @@map("contacts")
+}
+
+// =============================================================================
+// 5.4 — Opportunity
+// =============================================================================
+model Opportunity {
+  id          String  @id @default(uuid()) @db.Uuid
+  companyId   String  @map("company_id") @db.Uuid
+  type        String? @db.VarChar(150)
+  funnelStage String  @map("funnel_stage") @db.VarChar(50)
+  status      String  @db.VarChar(20)
+  value       Decimal?  @db.Decimal(15, 2)
+  rep         String? @db.VarChar(150)
+  notes       String? @db.Text
+
+  // Audit columns (Section 5.1)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  createdBy String    @map("created_by") @db.Uuid
+  updatedBy String    @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  deletedBy String?   @map("deleted_by") @db.Uuid
+
+  // Relations
+  company       Company @relation(fields: [companyId], references: [id])
+  createdByUser User    @relation("OpportunityCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User    @relation("OpportunityUpdatedBy", fields: [updatedBy], references: [id])
+  deletedByUser User?   @relation("OpportunityDeletedBy", fields: [deletedBy], references: [id])
+
+  // Indexes (Section 5.4)
+  @@index([companyId])
+  @@index([funnelStage, status])
+  @@index([deletedAt])
+  @@map("opportunities")
+}
